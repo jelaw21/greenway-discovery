@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Greenway Discovery Simulation</title>
+
+  <!-- Firebase compat SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+  <!-- React + Babel -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #f2e9dc; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+    // ── Firebase init ──────────────────────────────────────────────────────────
+    const firebaseConfig = {
+      apiKey: "AIzaSyB54c6-N5HuuiStraBuazYp1cT18gi5aFA",
+      authDomain: "greenway-discovery.firebaseapp.com",
+      databaseURL: "https://greenway-discovery-default-rtdb.firebaseio.com",
+      projectId: "greenway-discovery",
+      storageBucket: "greenway-discovery.firebasestorage.app",
+      messagingSenderId: "598801041374",
+      appId: "1:598801041374:web:871d2102dbc59348883f4f"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+  </script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // ── Constants ──────────────────────────────────────────────────────────────
+
+    const TEAM_NAMES = [
+      "The Warp Zone Wanderers","Insert Coin to Continue","Duck Hunt Defectors",
+      "Konami Code Compliance","The Power Glove Gang","Barrel Rollers Anonymous",
+      "Pitfall Harry's Crew","The Frogger Initiative","Blinky's Ghost Patrol",
+      "Galaga Squadron Seven","The Q*bert Consultancy","Asteroids Avoidance Club",
+      "Dig Dug Advisory Group","The Zapper Collective","Excitebike Strategy Group",
+      "The Centipede Stompers","Space Invaders Anonymous","Mushroom Kingdom Migrants",
+      "Contra: 30 Lives Edition","The Pong Paddle Partners",
+    ];
+
+    const MAX_TEAMS = 20;
+    const MAX_Q = 10;
+    const FAC_CODE = "greenway";
+    const CATS = ["Frontend","Backend","Integration","Infrastructure","Discovery","Other"];
+
+    const BRIEF = "We're a mid-size landscaping company, about 40 employees. We've been doing things the same way for a long time — jobs tracked on spreadsheets, scheduling handled by our office admin, that kind of thing. It works, but it's getting harder to keep up. The big thing is that invoicing takes way longer than it should because the office doesn't always know when a job is wrapped up until a crew lead calls in — and that doesn't always happen right away. We just need something that pulls it all together.";
+
+    const SYS = `You are Tom Garrison, owner of Greenway Landscape Services (~40 employees). A software consulting team is running a discovery session with you. You already delivered your opening statement. Now answer their questions.
+
+COMPANY: 18 years in business, suburban market. Commercial lawn maintenance (primary/recurring), high-end residential design/install, seasonal snow removal. Revenue ~$3–4M annually — only reveal if pressed twice. Peak season April–November. It is currently late November.
+
+PEOPLE:
+Tom (you): mid-50s, business-smart not tech-savvy. Final decision-maker on everything. All estimates over $2,000 need your approval before going to customers. You use a tablet for email and handle all sales yourself.
+Sandra: office admin, 20 hours per week, 8 years with the company. Runs all day-to-day operations. She would be the primary user of any new system. Comfortable with Excel, not technical. Slightly overwhelmed but won't say so — she'll say "it's a lot to keep track of."
+Field crews: 4 crews, each 1 crew lead plus 2–3 workers, roughly 12–16 field staff total. Crew leads have company-issued Android phones. Some workers have no phone at all. Cell signal is spotty at some commercial job sites, particularly those with large metal buildings.
+
+CURRENT SYSTEMS:
+Job tracking: Sandra's Excel spreadsheet — she alone edits it. One row per job. Columns: job number (GLS-XXX format, resets each January, currently mid-400s), customer name, site address, billing address (different from site for most commercial clients), job type (Maintenance Visit / Installation / Cleanup / Snow Removal / One-Time Service), contract type (Recurring or One-Time), assigned crew (1–4), scheduled date, status (Scheduled / In Progress / Complete / Invoiced / Paid), estimated value (manually copied from LMN estimate), date completed, QuickBooks invoice number, invoice sent date, payment received date, and a freeform notes column (gate codes, access instructions, customer preferences). Second tab tracks recurring commercial contracts: customer name, annual value, visit frequency (weekly/biweekly/monthly), assigned crew, season start and end. Sandra manually creates each week's job entries from this tab every Monday morning — takes about an hour.
+Estimating: LMN software (Landscape Management Network). Used for estimates only — not using scheduling or time-tracking features. Whether LMN has an API: "I have no idea — I'd have to ask the LMN people about that."
+Accounting: QuickBooks. Only say "Desktop version, the one you install on a computer" if directly asked which version. Sandra manually creates invoices and enters payment data in both QuickBooks and the spreadsheet — no connection between them.
+Crew communication: phone calls only. Leads are supposed to call Sandra when a job is done — "most of the time." Sandra spends roughly 2–3 hours a day chasing statuses. Crews get printed schedules or a text photo of the schedule — no system access.
+No CRM, GPS tracking, time clock system, or inventory management.
+
+KEY FACTS — never volunteer, only share when directly asked:
+QuickBooks Desktop not Online (clarify only if asked which version specifically).
+LMN API availability is unknown to you.
+Cell signal unreliable at some commercial sites.
+Sandra is part-time at 20 hours per week.
+Approval workflow stalls when you're out in the field and unreachable — no backup approver.
+Recurring job entries generated manually by Sandra every Monday.
+Invoice and payment status entered manually in both QuickBooks and the spreadsheet.
+
+WHAT TOM WANTS — use this language naturally if asked open-ended questions:
+"The guys should be able to tap something when they finish a job so Sandra knows it's done."
+"The estimate should automatically show up on the job list — right now Sandra retypes it."
+"A dashboard where I can see everything at a glance." Do not define what's on it.
+Phased approach, roughly $15–25K for phase one — only share if pressed on budget.
+Operational before spring, about 4 months away — only share if asked about timeline.
+
+STRICT BEHAVIOR RULES:
+1. Never volunteer information not directly asked. Answer only what is asked.
+2. One topic per response. 2–5 sentences max. No lists, bullets, or formatting in your replies.
+3. Plain business language: "the system" not "platform," "pull from" not "integrate with."
+4. Technical questions: "I don't know the technical side — that's what I'd hire you for."
+5. Genuinely uncertain items: "I'd have to check on that" — applies to LMN API, exact figures.
+6. Never say "great question" or telegraph that a question was insightful.
+7. Secondary interests like customer portal, GPS, or time tracking: one brief sentence, move on.
+8. Do not adopt the consultant's technical framing — stay in business language.
+9. Same question always gets the same answer.`;
+
+    // ── Utilities ──────────────────────────────────────────────────────────────
+
+    const uid = () => Math.random().toString(36).slice(2, 8);
+    const sumHours = (items) => items.reduce((s, i) => s + (parseFloat(i.hours) || 0), 0);
+    const countQ = (msgs) => msgs.filter((m) => m.role === "user").length;
+
+    // ── Firebase helpers ───────────────────────────────────────────────────────
+
+    const fbGet = async (path) => {
+      try {
+        const snap = await db.ref(path).get();
+        return snap.exists() ? snap.val() : null;
+      } catch { return null; }
+    };
+
+    const fbSet = async (path, value) => {
+      try { await db.ref(path).set(value); return true; }
+      catch { return false; }
+    };
+
+    const fbDel = async (path) => {
+      try { await db.ref(path).remove(); } catch {}
+    };
+
+    // ── AI ─────────────────────────────────────────────────────────────────────
+
+    async function callAI(msgs) {
+      const apiMsgs = [
+        { role: "user", content: "Please introduce yourself and your company." },
+        { role: "assistant", content: BRIEF },
+        ...msgs,
+      ];
+      const res = await fetch("/api/proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: SYS,
+          messages: apiMsgs,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+      return data.content.find((b) => b.type === "text")?.text ?? "";
+    }
+
+    async function callAnalysis(prompt) {
+      const res = await fetch("/api/proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 2000,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      const data = await res.json();
+      const text = data.content.find((b) => b.type === "text")?.text ?? "";
+      return text.replace(/```json|```/g, "").trim();
+    }
+
+    // ── CSS ────────────────────────────────────────────────────────────────────
+
+    const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,800&family=Nunito:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#f2e9dc;--surf:#fdf8f2;--surf2:#e9dfd2;--border:#d5c9b6;--green:#2d6e4e;--green-dim:rgba(45,110,78,0.1);--green-border:rgba(45,110,78,0.25);--text:#2a1f14;--muted:#8a7a6a;--amber:#a85f0a;--amber-dim:rgba(168,95,10,0.12);--red:#b03a22;--red-dim:rgba(176,58,34,0.1);--fh:'Fraunces',serif;--fm:'DM Mono',monospace;--fb:'Nunito',sans-serif;}
+html,body{min-height:100%;background-color:var(--bg);color:var(--text);font-family:var(--fb);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;}
+.loading{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;}
+.ld-dots{display:flex;gap:7px;}
+.ld-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:ldpulse 1.2s ease-in-out infinite;}
+.ld-dot:nth-child(2){animation-delay:.2s;}.ld-dot:nth-child(3){animation-delay:.4s;}
+@keyframes ldpulse{0%,100%{opacity:.2;transform:scale(.7);}50%{opacity:1;transform:scale(1);}}
+.ld-label{font-family:var(--fb);font-size:13px;color:var(--muted);letter-spacing:.04em;}
+.landing{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;text-align:center;}
+.l-eye{font-family:var(--fm);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--green);margin-bottom:24px;}
+.l-title{font-family:var(--fh);font-size:clamp(32px,5vw,58px);font-weight:800;line-height:1.05;margin-bottom:14px;color:var(--text);}
+.l-sub{font-size:15px;color:var(--muted);margin-bottom:48px;max-width:320px;line-height:1.7;font-weight:500;}
+.l-btns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
+.btn-primary{background:var(--green);color:#fff;border:none;padding:13px 30px;font-family:var(--fh);font-size:14px;font-weight:700;cursor:pointer;border-radius:8px;transition:background .15s,transform .1s;box-shadow:0 2px 8px rgba(45,110,78,.25);}
+.btn-primary:hover{background:#226040;transform:translateY(-1px);}
+.btn-ghost{background:var(--surf);color:var(--muted);border:1px solid var(--border);padding:13px 30px;font-family:var(--fh);font-size:14px;font-weight:600;cursor:pointer;border-radius:8px;transition:all .15s;}
+.btn-ghost:hover{border-color:var(--muted);color:var(--text);}
+.btn-sm{background:var(--surf);color:var(--muted);border:1px solid var(--border);padding:7px 14px;font-size:12px;font-family:var(--fb);font-weight:600;cursor:pointer;border-radius:6px;transition:all .15s;white-space:nowrap;}
+.btn-sm:hover{border-color:var(--text);color:var(--text);}.btn-sm.active{border-color:var(--green);color:var(--green);background:var(--green-dim);}
+.btn-danger{background:var(--surf);color:var(--muted);border:1px solid var(--border);padding:7px 14px;font-size:12px;font-family:var(--fb);font-weight:600;cursor:pointer;border-radius:6px;transition:all .15s;white-space:nowrap;}
+.btn-danger:hover{border-color:var(--red);color:var(--red);}
+.btn-back{background:var(--surf);color:var(--muted);border:1px solid var(--border);padding:7px 14px;font-size:12px;font-family:var(--fb);font-weight:600;cursor:pointer;border-radius:6px;transition:all .15s;white-space:nowrap;}
+.btn-back:hover{color:var(--text);border-color:var(--text);}
+.btn-warn{background:var(--amber);color:#fff;border:none;padding:10px 22px;font-family:var(--fh);font-size:13px;font-weight:700;cursor:pointer;border-radius:7px;}
+.btn-cancel{background:var(--surf2);border:1px solid var(--border);color:var(--muted);padding:10px 22px;font-size:13px;cursor:pointer;border-radius:7px;font-family:var(--fb);font-weight:600;}
+.reveal{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:48px 24px;}
+.reveal-inner{display:flex;flex-direction:column;align-items:center;text-align:center;max-width:580px;width:100%;}
+.rev-eye{font-family:var(--fb);font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+.rev-num{font-family:var(--fm);font-size:11px;color:var(--muted);margin-bottom:6px;}
+.rev-name{font-family:var(--fh);font-size:clamp(26px,5vw,46px);font-weight:800;color:var(--green);line-height:1.1;margin-bottom:36px;}
+.rev-brief-lbl{font-family:var(--fm);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--green);margin-bottom:10px;align-self:flex-start;}
+.rev-brief{background:var(--surf);border:1px solid var(--border);border-left:3px solid var(--green);padding:20px 24px;border-radius:8px;text-align:left;font-size:14px;line-height:1.8;color:var(--text);width:100%;margin-bottom:36px;box-shadow:0 2px 12px rgba(0,0,0,.06);}
+.chat-screen{height:100vh;display:flex;flex-direction:column;background:var(--bg);}
+.chat-hdr{display:flex;align-items:center;gap:16px;padding:13px 20px;border-bottom:1px solid var(--border);background:var(--surf);flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.ch-ident{flex:1;min-width:0;}
+.ch-name{font-family:var(--fh);font-size:14px;font-weight:700;color:var(--green);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ch-label{font-size:11px;color:var(--muted);font-weight:500;}
+.counter{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
+.ctr-text{font-family:var(--fm);font-size:11px;color:var(--muted);transition:color .3s;}
+.ctr-text.amber{color:var(--amber);}.ctr-text.red{color:var(--red);}
+.ctr-pips{display:flex;gap:3px;}
+.pip{width:7px;height:7px;border-radius:50%;background:var(--surf2);border:1px solid var(--border);transition:all .25s;}
+.pip.on{background:var(--green);border-color:var(--green);}.pip.amber{background:var(--amber);border-color:var(--amber);}.pip.red{background:var(--red);border-color:var(--red);}
+.btn-close-chat{background:var(--surf);border:1px solid var(--border);color:var(--muted);padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;border-radius:6px;transition:all .15s;white-space:nowrap;flex-shrink:0;font-family:var(--fb);}
+.btn-close-chat:hover{border-color:var(--amber);color:var(--amber);}
+.msgs{flex:1;overflow-y:auto;padding:22px 20px;display:flex;flex-direction:column;gap:18px;}
+.msgs::-webkit-scrollbar{width:4px;}.msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.msg{display:flex;flex-direction:column;gap:5px;max-width:680px;}
+.msg.client{align-self:flex-start;}.msg.user{align-self:flex-end;align-items:flex-end;}
+.msg-role{font-family:var(--fb);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);}
+.msg.user .msg-role{color:var(--green);}
+.bubble{padding:13px 17px;border-radius:12px;font-size:14px;line-height:1.7;}
+.bubble.client{background:var(--surf);border:1px solid var(--border);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.bubble.user{background:var(--green);color:#fff;box-shadow:0 1px 4px rgba(45,110,78,.2);}
+.typing{display:flex;gap:5px;align-items:center;padding:16px 17px;}
+.tdot{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:td 1.2s ease-in-out infinite;}
+.tdot:nth-child(2){animation-delay:.2s;}.tdot:nth-child(3){animation-delay:.4s;}
+@keyframes td{0%,100%{opacity:.25;transform:scale(.7);}50%{opacity:1;transform:scale(1);}}
+.chat-ftr{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--border);background:var(--surf);flex-shrink:0;align-items:flex-end;box-shadow:0 -1px 4px rgba(0,0,0,.05);}
+.chat-input{flex:1;background:var(--surf2);border:1px solid var(--border);color:var(--text);padding:10px 14px;font-family:var(--fb);font-size:14px;border-radius:8px;resize:none;outline:none;transition:border-color .15s;line-height:1.5;min-height:42px;max-height:110px;}
+.chat-input:focus{border-color:var(--green);}.chat-input::placeholder{color:var(--muted);}.chat-input:disabled{opacity:.5;}
+.btn-send{background:var(--green);color:#fff;border:none;padding:0 22px;font-family:var(--fh);font-size:14px;font-weight:700;cursor:pointer;border-radius:8px;height:42px;transition:background .15s;flex-shrink:0;}
+.btn-send:hover:not(:disabled){background:#226040;}.btn-send:disabled{opacity:.35;cursor:not-allowed;}
+.chat-locked{flex-shrink:0;padding:16px;border-top:1px solid var(--border);background:var(--surf);text-align:center;}
+.chat-locked-txt{font-family:var(--fb);font-size:12px;font-weight:600;color:var(--amber);letter-spacing:.04em;}
+.overlay{position:fixed;inset:0;background:rgba(42,31,20,.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px;backdrop-filter:blur(2px);}
+.dialog{background:var(--surf);border:1px solid var(--border);border-radius:14px;padding:30px;max-width:400px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.15);}
+.dialog-title{font-family:var(--fh);font-size:20px;font-weight:700;margin-bottom:10px;color:var(--text);}
+.dialog-title.danger{color:var(--red);}
+.dialog-body{font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:26px;font-weight:500;}
+.dialog-rem{font-family:var(--fm);font-size:30px;color:var(--amber);display:block;margin:8px 0 4px;line-height:1;}
+.dialog-btns{display:flex;gap:10px;justify-content:flex-end;}
+.btn-warn-red{background:var(--red);color:#fff;border:none;padding:10px 22px;font-family:var(--fh);font-size:13px;font-weight:700;cursor:pointer;border-radius:7px;}
+.scope-screen{height:100vh;display:flex;flex-direction:column;background:var(--bg);}
+.scope-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid var(--border);background:var(--surf);flex-shrink:0;gap:16px;flex-wrap:wrap;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.sc-ident .sc-name{font-family:var(--fh);font-size:15px;font-weight:700;color:var(--green);}
+.sc-ident .sc-label{font-size:11px;color:var(--muted);margin-top:2px;font-weight:500;}
+.sc-hdr-right{display:flex;align-items:center;gap:20px;flex-shrink:0;}
+.sc-total{text-align:right;}
+.sc-total-lbl{font-family:var(--fb);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:2px;}
+.sc-total-val{font-family:var(--fm);font-size:32px;font-weight:500;color:var(--green);line-height:1;}
+.sc-total-unit{font-family:var(--fm);font-size:13px;color:var(--muted);}
+.btn-submit{background:var(--green);color:#fff;border:none;padding:9px 20px;font-family:var(--fh);font-size:13px;font-weight:700;cursor:pointer;border-radius:7px;transition:background .15s;box-shadow:0 2px 8px rgba(45,110,78,.2);}
+.btn-submit:hover{background:#226040;}
+.scope-split{flex:1;display:flex;flex-direction:row;min-height:0;overflow:hidden;}
+.scope-qa{width:38%;min-width:180px;flex-shrink:0;overflow-y:auto;padding:20px;border-right:1px solid var(--border);background:var(--surf2);}
+.scope-qa::-webkit-scrollbar{width:3px;}.scope-qa::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.scope-qa-lbl{font-family:var(--fb);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;}
+.scope-board{flex:1;overflow-y:auto;padding:22px 26px;background:var(--surf);}
+.scope-board::-webkit-scrollbar{width:3px;}.scope-board::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.scope-table{width:100%;border-collapse:collapse;margin-bottom:12px;}
+.scope-table th{font-family:var(--fb);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 10px 10px;text-align:left;border-bottom:1px solid var(--border);}
+.scope-table td{padding:7px 10px;border-bottom:1px solid var(--surf2);vertical-align:middle;}
+.si{background:transparent;border:none;color:var(--text);font-family:var(--fb);font-size:14px;width:100%;outline:none;font-weight:500;}
+.si::placeholder{color:var(--muted);font-weight:400;}
+.ss{background:var(--surf2);border:1px solid var(--border);color:var(--text);font-family:var(--fb);font-size:11px;font-weight:600;padding:4px 8px;border-radius:6px;outline:none;cursor:pointer;}
+.sh{background:transparent;border:none;color:var(--green);font-family:var(--fm);font-size:14px;font-weight:500;width:60px;text-align:right;outline:none;}
+.sh::placeholder{color:var(--muted);}
+.btn-del{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:3px;transition:color .15s;}
+.btn-del:hover{color:var(--red);}
+.btn-add-row{width:100%;background:transparent;border:1.5px dashed var(--border);color:var(--muted);padding:10px;font-size:13px;font-family:var(--fb);font-weight:600;cursor:pointer;border-radius:8px;margin-bottom:24px;transition:all .15s;}
+.btn-add-row:hover{border-color:var(--green);color:var(--green);}
+.scope-empty{font-size:13px;color:var(--muted);font-style:italic;text-align:center;padding:32px 0;font-weight:500;}
+.submitted-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;text-align:center;}
+.sub-check{font-size:52px;margin-bottom:16px;}
+.sub-title{font-family:var(--fh);font-size:30px;font-weight:800;margin-bottom:6px;color:var(--text);}
+.sub-team{font-family:var(--fm);font-size:12px;color:var(--muted);margin-bottom:40px;}
+.sub-stats{display:flex;gap:40px;margin-bottom:44px;flex-wrap:wrap;justify-content:center;}
+.sub-stat{display:flex;flex-direction:column;align-items:center;gap:5px;background:var(--surf);border:1px solid var(--border);border-radius:12px;padding:20px 28px;box-shadow:0 2px 10px rgba(0,0,0,.06);}
+.sub-stat-val{font-family:var(--fm);font-size:36px;font-weight:500;color:var(--green);line-height:1;}
+.sub-stat-lbl{font-family:var(--fb);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+.fac-login{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:48px 24px;}
+.fac-login-title{font-family:var(--fh);font-size:24px;font-weight:700;color:var(--text);}
+.fac-login-sub{font-size:13px;color:var(--muted);margin-top:-12px;font-weight:500;}
+.fac-inp{background:var(--surf);border:1.5px solid var(--border);color:var(--text);padding:12px 20px;font-family:var(--fm);font-size:15px;letter-spacing:.1em;border-radius:8px;outline:none;width:240px;text-align:center;transition:border-color .15s;box-shadow:0 2px 8px rgba(0,0,0,.06);}
+.fac-inp:focus{border-color:var(--green);}.fac-inp.err{border-color:var(--red);animation:shake .3s;}
+@keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-6px);}75%{transform:translateX(6px);}}
+.fac-err{font-family:var(--fb);font-size:12px;font-weight:600;color:var(--red);}
+.fac-dash{min-height:100vh;background:var(--bg);}
+.fac-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid var(--border);background:var(--surf);gap:16px;flex-wrap:wrap;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.fac-hdr-left .fac-hdr-title{font-family:var(--fh);font-size:17px;font-weight:700;color:var(--text);}
+.fac-hdr-left .fac-hdr-sub{font-size:11px;color:var(--muted);margin-top:1px;font-weight:500;}
+.fac-hdr-right{display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.fac-count{font-family:var(--fb);font-size:12px;color:var(--muted);font-weight:600;}
+.fac-body{padding:24px;}
+.team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;}
+.team-card{background:var(--surf);border:1px solid var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.05);}
+.team-card::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0;}
+.team-card.chatting::after{background:var(--surf2);}.team-card.scoping::after{background:var(--amber);}.team-card.submitted::after{background:var(--green);}
+.team-card:hover{border-color:var(--green);transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.1);}
+.card-num{font-family:var(--fb);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.card-name{font-family:var(--fh);font-size:15px;font-weight:700;line-height:1.2;margin-bottom:16px;color:var(--text);}
+.card-stats{display:flex;align-items:flex-end;justify-content:space-between;}
+.c-stat{display:flex;flex-direction:column;gap:2px;}
+.c-stat-lbl{font-family:var(--fb);font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+.c-stat-val{font-family:var(--fm);font-size:16px;font-weight:500;color:var(--text);}
+.c-stat-val.hours{font-size:26px;color:var(--green);}
+.c-denom{font-size:11px;color:var(--muted);}
+.badge{font-family:var(--fb);font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:20px;}
+.badge.chatting{color:var(--muted);background:var(--surf2);}.badge.scoping{color:var(--amber);background:var(--amber-dim);}.badge.submitted{color:var(--green);background:var(--green-dim);}
+.fac-empty{font-size:14px;color:var(--muted);font-style:italic;padding:48px 0;text-align:center;font-weight:500;}
+.btn-questions{background:var(--surf2);border:1px solid var(--border);color:var(--muted);padding:6px 12px;font-size:11px;font-family:var(--fb);font-weight:600;cursor:pointer;border-radius:6px;transition:all .15s;white-space:nowrap;margin-top:12px;width:100%;}
+.btn-questions:hover{border-color:var(--green);color:var(--green);}
+.q-modal{max-width:680px;width:100%;}
+.q-modal-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;gap:12px;}
+.q-modal-title{font-family:var(--fh);font-size:22px;font-weight:700;line-height:1.2;color:var(--text);}
+.q-modal-sub{font-family:var(--fm);font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.06em;}
+.btn-close-modal{background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0;transition:color .15s;}
+.btn-close-modal:hover{color:var(--text);}
+.q-list{display:flex;flex-direction:column;gap:14px;max-height:520px;overflow-y:auto;}
+.q-list::-webkit-scrollbar{width:3px;}.q-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.q-item{display:flex;gap:16px;align-items:flex-start;}
+.q-num{font-family:var(--fm);font-size:12px;color:var(--green);min-width:24px;padding-top:2px;font-weight:500;}
+.q-text{font-size:16px;line-height:1.65;color:var(--text);border-left:2px solid var(--border);padding-left:14px;font-weight:500;}
+.q-empty{font-size:15px;color:var(--muted);font-style:italic;font-weight:500;}
+.qg-screen{height:100vh;display:flex;flex-direction:column;background:var(--bg);}
+.qg-header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid var(--border);background:var(--surf);flex-shrink:0;gap:16px;flex-wrap:wrap;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.qg-header-left .qg-title{font-family:var(--fh);font-size:17px;font-weight:700;color:var(--text);}
+.qg-header-left .qg-sub{font-size:11px;color:var(--muted);margin-top:2px;font-weight:500;}
+.qg-body{flex:1;overflow-x:auto;overflow-y:hidden;padding:24px;}
+.qg-grid{display:flex;gap:14px;align-items:flex-start;height:100%;}
+.qg-col{background:var(--surf);border:1px solid var(--border);border-radius:12px;padding:16px;width:220px;flex-shrink:0;display:flex;flex-direction:column;max-height:100%;overflow:hidden;position:relative;box-shadow:0 2px 8px rgba(0,0,0,.05);}
+.qg-col::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0;}
+.qg-col.chatting::before{background:var(--surf2);}.qg-col.scoping::before{background:var(--amber);}.qg-col.submitted::before{background:var(--green);}
+.qg-col-num{font-family:var(--fb);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;}
+.qg-col-name{font-family:var(--fh);font-size:13px;font-weight:700;line-height:1.2;margin-bottom:12px;color:var(--text);}
+.qg-divider{height:1px;background:var(--border);margin-bottom:12px;}
+.qg-questions{overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:9px;}
+.qg-questions::-webkit-scrollbar{width:2px;}.qg-questions::-webkit-scrollbar-thumb{background:var(--border);border-radius:1px;}
+.qg-q{display:flex;gap:8px;align-items:flex-start;}
+.qg-qnum{font-family:var(--fm);font-size:9px;color:var(--green);min-width:16px;padding-top:2px;font-weight:500;flex-shrink:0;}
+.qg-qtext{font-size:11px;line-height:1.55;color:var(--text);font-weight:500;}
+.qg-none{font-size:11px;color:var(--muted);font-style:italic;font-weight:500;}
+.analysis-body{flex:1;overflow-y:auto;padding:28px;}
+.analysis-body::-webkit-scrollbar{width:4px;}.analysis-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.analysis-prompt{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:14px;text-align:center;}
+.analysis-prompt-title{font-family:var(--fh);font-size:22px;font-weight:700;color:var(--text);}
+.analysis-prompt-sub{font-size:14px;color:var(--muted);max-width:400px;line-height:1.65;font-weight:500;}
+.analysis-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:14px;}
+.analysis-loading-text{font-size:13px;color:var(--muted);font-weight:500;}
+.analysis-groups{display:flex;flex-direction:column;gap:12px;max-width:860px;margin:0 auto;}
+.ag{background:var(--surf);border:1px solid var(--border);border-radius:12px;padding:20px 24px;display:flex;gap:22px;align-items:flex-start;box-shadow:0 2px 8px rgba(0,0,0,.05);transition:box-shadow .15s;}
+.ag:hover{box-shadow:0 4px 16px rgba(0,0,0,.09);}
+.ag-count{flex-shrink:0;display:flex;flex-direction:column;align-items:center;background:var(--green-dim);border:1px solid var(--green-border);border-radius:10px;padding:12px 16px;min-width:68px;}
+.ag-count-num{font-family:var(--fm);font-size:32px;font-weight:500;color:var(--green);line-height:1;}
+.ag-count-label{font-family:var(--fb);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:4px;text-align:center;}
+.ag-content{flex:1;}
+.ag-theme{font-family:var(--fh);font-size:18px;font-weight:700;margin-bottom:5px;color:var(--text);}
+.ag-summary{font-size:13px;color:var(--muted);margin-bottom:12px;font-weight:500;line-height:1.55;}
+.ag-teams{display:flex;flex-wrap:wrap;gap:6px;}
+.ag-chip{font-family:var(--fb);font-size:10px;font-weight:700;background:var(--surf2);border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:20px;}
+.ag-expand-btn{background:none;border:none;font-family:var(--fb);font-size:11px;font-weight:700;color:var(--green);cursor:pointer;padding:8px 0 0;text-decoration:underline;text-underline-offset:3px;}
+.ag-expand-btn:hover{color:#226040;}
+.ag-questions{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px;}
+.ag-q-item{display:flex;gap:10px;align-items:flex-start;}
+.ag-q-chip{font-family:var(--fb);font-size:9px;font-weight:700;background:var(--green-dim);border:1px solid var(--green-border);color:var(--green);padding:2px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0;margin-top:2px;}
+.ag-q-text{font-size:13px;line-height:1.55;color:var(--text);font-weight:500;}
+.analysis-error{font-size:14px;color:var(--red);text-align:center;padding:32px;font-weight:500;}
+.fac-detail{height:100vh;display:flex;flex-direction:column;background:var(--bg);}
+.fac-det-hdr{display:flex;align-items:center;gap:14px;padding:13px 20px;border-bottom:1px solid var(--border);background:var(--surf);flex-wrap:wrap;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.det-info .det-name{font-family:var(--fh);font-size:16px;font-weight:700;color:var(--text);}
+.det-info .det-num{font-family:var(--fb);font-size:11px;color:var(--muted);font-weight:500;}
+.det-meta{font-family:var(--fm);font-size:11px;color:var(--muted);margin-left:auto;}
+.fac-det-body{flex:1;display:grid;grid-template-columns:1fr 1fr;min-height:0;overflow:hidden;}
+@media(max-width:680px){.fac-det-body{grid-template-columns:1fr;grid-template-rows:1fr 1fr;}}
+.pane{overflow-y:auto;padding:22px;border-right:1px solid var(--border);background:var(--surf);}
+.pane:last-child{border-right:none;background:var(--surf2);}
+.pane::-webkit-scrollbar{width:3px;}.pane::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.pane-lbl{font-family:var(--fb);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:18px;}
+.fac-msg{margin-bottom:16px;}
+.fac-role{font-family:var(--fb);font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
+.fac-role.user{color:var(--green);}
+.fac-txt{font-size:13px;line-height:1.68;padding-left:10px;border-left:2px solid var(--border);color:var(--text);font-weight:500;}
+.fac-role.user+.fac-txt{border-left-color:var(--green);}
+.pane-empty{font-size:12px;color:var(--muted);font-style:italic;padding:12px 0;font-weight:500;}
+.fac-scope-row{padding:10px 0;border-bottom:1px solid var(--border);}
+.fac-scope-task{font-size:13px;line-height:1.5;margin-bottom:4px;font-weight:500;color:var(--text);}
+.fac-scope-meta{display:flex;justify-content:space-between;align-items:center;}
+.fac-scope-cat{font-family:var(--fb);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
+.fac-scope-hrs{font-family:var(--fm);font-size:13px;color:var(--green);font-weight:500;}
+.fac-scope-total{display:flex;justify-content:flex-end;align-items:center;gap:10px;padding-top:14px;font-family:var(--fb);font-size:12px;color:var(--muted);font-weight:600;}
+.fac-scope-total strong{font-size:22px;color:var(--green);font-weight:500;font-family:var(--fm);}
+`;
+
+    // ── App ────────────────────────────────────────────────────────────────────
+
+    function App() {
+      const [screen, setScreen] = useState("loading");
+      const [team, setTeam] = useState(null);
+      const [input, setInput] = useState("");
+      const [aiLoading, setAiLoading] = useState(false);
+      const [confirm, setConfirm] = useState(false);
+      const [submitConfirm, setSubmitConfirm] = useState(false);
+      const [facInput, setFacInput] = useState("");
+      const [facErr, setFacErr] = useState(false);
+      const [allTeams, setAllTeams] = useState([]);
+      const [detailTeam, setDetailTeam] = useState(null);
+      const [sortHours, setSortHours] = useState(false);
+      const [facLoading, setFacLoading] = useState(false);
+      const [resetConfirm, setResetConfirm] = useState(false);
+      const [questionsModal, setQuestionsModal] = useState(null);
+      const [analysisResult, setAnalysisResult] = useState(null);
+      const [analysisLoading, setAnalysisLoading] = useState(false);
+      const [qgMode, setQgMode] = useState("analysis");
+      const [expandedGroup, setExpandedGroup] = useState(null);
+
+      const bottomRef = useRef(null);
+      const saveRef = useRef(null);
+      const pollRef = useRef(null);
+
+      // ── Boot ──────────────────────────────────────────────────────────────────
+
+      useEffect(() => {
+        const el = document.createElement("style");
+        el.textContent = CSS;
+        document.head.appendChild(el);
+
+        (async () => {
+          const hash = window.location.hash.slice(1);
+          if (!hash) return setScreen("landing");
+          if (hash === "fac") return setScreen("facilitator-login");
+          if (hash.startsWith("s_")) {
+            const sess = await fbGet(`session/${hash}`);
+            if (sess?.teamNumber) {
+              const saved = await fbGet(`team/${sess.teamNumber}`);
+              if (saved) {
+                // Firebase stores arrays as objects — restore messages and scopeItems
+                const team = {
+                  ...saved,
+                  messages: saved.messages ? Object.values(saved.messages) : [],
+                  scopeItems: saved.scopeItems ? Object.values(saved.scopeItems) : [],
+                };
+                setTeam(team);
+                if (team.submitted) return setScreen("submitted");
+                return setScreen(team.chatClosed ? "scope" : "chat");
+              }
+            }
+          }
+          setScreen("landing");
+        })();
+      }, []);
+
+      // ── Auto-scroll ──────────────────────────────────────────────────────────
+
+      useEffect(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, [team?.messages?.length, aiLoading]);
+
+      // ── Save ──────────────────────────────────────────────────────────────────
+
+      const save = useCallback((data) => {
+        clearTimeout(saveRef.current);
+        saveRef.current = setTimeout(() => fbSet(`team/${data.teamNumber}`, data), 400);
+      }, []);
+
+      const upd = useCallback((fn) => {
+        setTeam((prev) => {
+          const next = typeof fn === "function" ? fn(prev) : fn;
+          save(next);
+          return next;
+        });
+      }, [save]);
+
+      // ── Facilitator polling ───────────────────────────────────────────────────
+
+      const loadTeams = useCallback(async () => {
+        setFacLoading(true);
+        try {
+          const snap = await db.ref("team").get();
+          if (snap.exists()) {
+            const raw = snap.val();
+            const teams = Object.values(raw).map((t) => ({
+              ...t,
+              messages: t.messages ? Object.values(t.messages) : [],
+              scopeItems: t.scopeItems ? Object.values(t.scopeItems) : [],
+            })).sort((a, b) => a.teamNumber - b.teamNumber);
+            setAllTeams(teams);
+          } else {
+            setAllTeams([]);
+          }
+        } catch { setAllTeams([]); }
+        setFacLoading(false);
+      }, []);
+
+      useEffect(() => {
+        if (screen === "facilitator-dashboard") {
+          loadTeams();
+          pollRef.current = setInterval(loadTeams, 15000);
+          return () => clearInterval(pollRef.current);
+        }
+      }, [screen, loadTeams]);
+
+      // ── Team login ─────────────────────────────────────────────────────────────
+
+      const doTeamLogin = async () => {
+        setScreen("loading");
+        await new Promise((r) => setTimeout(r, Math.random() * 300));
+
+        let num = 1;
+        try {
+          const result = await db.ref("meta/team_count").transaction((cur) => {
+            const next = (cur || 0) + 1;
+            return next > MAX_TEAMS ? MAX_TEAMS : next;
+          });
+          num = result.snapshot.val() || 1;
+        } catch {}
+
+        const sid = "s_" + uid();
+        const newTeam = {
+          teamNumber: num,
+          teamName: TEAM_NAMES[num - 1] ?? `Team ${num}`,
+          sessionId: sid,
+          messages: [],
+          chatClosed: false,
+          scopeItems: [],
+          registeredAt: Date.now(),
+        };
+
+        await fbSet(`session/${sid}`, { teamNumber: num });
+        await fbSet(`team/${num}`, newTeam);
+        window.location.hash = sid;
+        setTeam(newTeam);
+        setScreen("reveal");
+      };
+
+      // ── Chat ──────────────────────────────────────────────────────────────────
+
+      const sendMessage = async () => {
+        const text = input.trim();
+        if (!text || aiLoading || !team) return;
+        if (countQ(team.messages) >= MAX_Q) return;
+
+        const userMsg = { role: "user", content: text };
+        const withUser = [...team.messages, userMsg];
+        setInput("");
+        upd((p) => ({ ...p, messages: withUser }));
+        setAiLoading(true);
+
+        try {
+          const reply = await callAI(withUser);
+          const final = [...withUser, { role: "assistant", content: reply }];
+          upd((p) => ({ ...p, messages: final }));
+          if (countQ(final) >= MAX_Q) {
+            setTimeout(() => {
+              upd((p) => ({ ...p, chatClosed: true }));
+              setScreen("scope");
+            }, 2200);
+          }
+        } catch {
+          upd((p) => ({
+            ...p,
+            messages: [...withUser, { role: "assistant", content: "Sorry, connection trouble. Give it a moment and try again." }],
+          }));
+        }
+        setAiLoading(false);
+      };
+
+      const closeChat = () => {
+        upd((p) => ({ ...p, chatClosed: true }));
+        setConfirm(false);
+        setScreen("scope");
+      };
+
+      // ── Scope ─────────────────────────────────────────────────────────────────
+
+      const addRow = () => upd((p) => ({ ...p, scopeItems: [...p.scopeItems, { id: uid(), task: "", category: "Backend", hours: "" }] }));
+      const updRow = (id, f, v) => upd((p) => ({ ...p, scopeItems: p.scopeItems.map((r) => (r.id === id ? { ...r, [f]: v } : r)) }));
+      const delRow = (id) => upd((p) => ({ ...p, scopeItems: p.scopeItems.filter((r) => r.id !== id) }));
+      const handleSubmit = () => { upd((p) => ({ ...p, submitted: true })); setSubmitConfirm(false); setScreen("submitted"); };
+
+      // ── Facilitator ───────────────────────────────────────────────────────────
+
+      const facLogin = () => {
+        if (facInput.toLowerCase().trim() === FAC_CODE) {
+          window.location.hash = "fac";
+          setScreen("facilitator-dashboard");
+        } else {
+          setFacErr(true);
+          setTimeout(() => setFacErr(false), 1800);
+        }
+      };
+
+      const openDetail = async (t) => {
+        const snap = await db.ref(`team/${t.teamNumber}`).get();
+        if (snap.exists()) {
+          const raw = snap.val();
+          setDetailTeam({
+            ...raw,
+            messages: raw.messages ? Object.values(raw.messages) : [],
+            scopeItems: raw.scopeItems ? Object.values(raw.scopeItems) : [],
+          });
+        } else {
+          setDetailTeam(t);
+        }
+        setScreen("facilitator-detail");
+      };
+
+      const resetSession = async () => {
+        await fbDel("team");
+        await fbDel("session");
+        await fbDel("meta");
+        setAllTeams([]);
+        setResetConfirm(false);
+      };
+
+      const runAnalysis = async () => {
+        const teamsWithQ = allTeams.filter((t) => t.messages.some((m) => m.role === "user"));
+        if (teamsWithQ.length === 0) return;
+        setAnalysisLoading(true);
+        setAnalysisResult(null);
+        setExpandedGroup(null);
+
+        const teamSections = teamsWithQ.map((t) => {
+          const qs = t.messages.filter((m) => m.role === "user").map((m, i) => `  Q${i + 1}: ${m.content}`).join("\n");
+          return `TEAM ${t.teamNumber} — ${t.teamName}:\n${qs}`;
+        }).join("\n\n");
+
+        const prompt = `You are analyzing discovery questions from a software consulting exercise. Multiple teams interviewed the same client. Group related questions into themes.
+
+${teamSections}
+
+Return ONLY valid JSON — no markdown, no backticks, no commentary. Use this exact structure:
+{"groups":[{"theme":"3-6 word label","summary":"One sentence describing what teams were trying to learn","questions":[{"team_number":1,"team_name":"Exact Team Name","text":"exact question text"}]}]}
+
+Rules:
+- Include EVERY question exactly once in exactly one group.
+- Use the exact team numbers and team names from the input above.
+- Do NOT include any count fields.
+- Group broadly. Aim for 5-10 meaningful groups.`;
+
+        try {
+          const raw = await callAnalysis(prompt);
+          const parsed = JSON.parse(raw);
+          const enriched = {
+            groups: parsed.groups.map((g) => {
+              const uniqueTeams = [...new Map(g.questions.map((q) => [q.team_number, q.team_name])).entries()];
+              return { ...g, count: uniqueTeams.length, team_names: uniqueTeams.map(([, name]) => name) };
+            }).sort((a, b) => b.count - a.count),
+          };
+          setAnalysisResult(enriched);
+        } catch { setAnalysisResult({ error: true }); }
+        setAnalysisLoading(false);
+      };
+
+      // ── Derived ───────────────────────────────────────────────────────────────
+
+      const qUsed = team ? countQ(team.messages) : 0;
+      const remaining = MAX_Q - qUsed;
+      const scopeHrs = team ? sumHours(team.scopeItems) : 0;
+      const sortedTeams = sortHours ? [...allTeams].sort((a, b) => sumHours(b.scopeItems) - sumHours(a.scopeItems)) : allTeams;
+      const pipClass = (i) => { if (i >= qUsed) return "pip"; if (remaining <= 2) return "pip red"; if (remaining <= 4) return "pip amber"; return "pip on"; };
+      const ctrClass = `ctr-text${remaining <= 2 ? " red" : remaining <= 4 ? " amber" : ""}`;
+
+      // ── Render ────────────────────────────────────────────────────────────────
+
+      if (screen === "loading") return (
+        <div className="loading">
+          <div className="ld-dots"><div className="ld-dot"/><div className="ld-dot"/><div className="ld-dot"/></div>
+          <p className="ld-label">initializing</p>
+        </div>
+      );
+
+      if (screen === "landing") return (
+        <div className="landing">
+          <p className="l-eye">Discovery Simulation</p>
+          <h1 className="l-title">Greenway Landscape Services</h1>
+          <p className="l-sub">Your team has 10 questions. Make them count.</p>
+          <div className="l-btns">
+            <button className="btn-primary" onClick={doTeamLogin}>Team Login</button>
+            <button className="btn-ghost" onClick={() => { window.location.hash = "fac"; setScreen("facilitator-login"); }}>Facilitator Mode</button>
+          </div>
+        </div>
+      );
+
+      if (screen === "reveal" && team) return (
+        <div className="reveal">
+          <div className="reveal-inner">
+            <p className="rev-eye">You've been assigned</p>
+            <p className="rev-num">Team {team.teamNumber}</p>
+            <h2 className="rev-name">{team.teamName}</h2>
+            <p className="rev-brief-lbl">Client Opening Statement</p>
+            <blockquote className="rev-brief">{BRIEF}</blockquote>
+            <button className="btn-primary" onClick={() => setScreen("chat")}>Begin Discovery →</button>
+          </div>
+        </div>
+      );
+
+      if (screen === "chat" && team) return (
+        <div className="chat-screen">
+          {confirm && (
+            <div className="overlay">
+              <div className="dialog">
+                <h3 className="dialog-title">Close Discovery?</h3>
+                <p className="dialog-body">You have <span className="dialog-rem">{remaining} question{remaining !== 1 ? "s" : ""}</span> remaining. Once you close the chat it cannot be reopened. Your team moves directly to scoping.</p>
+                <div className="dialog-btns">
+                  <button className="btn-cancel" onClick={() => setConfirm(false)}>Go Back</button>
+                  <button className="btn-warn" onClick={closeChat}>Close &amp; Begin Scoping</button>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="chat-hdr">
+            <div className="ch-ident">
+              <div className="ch-name">{team.teamName}</div>
+              <div className="ch-label">Team {team.teamNumber} · Discovery Phase</div>
+            </div>
+            <div className="counter">
+              <div className={ctrClass}>{qUsed} / {MAX_Q} questions</div>
+              <div className="ctr-pips">{Array.from({ length: MAX_Q }).map((_, i) => <div key={i} className={pipClass(i)} />)}</div>
+            </div>
+            {qUsed < MAX_Q && <button className="btn-close-chat" onClick={() => setConfirm(true)}>Close Chat</button>}
+          </div>
+          <div className="msgs">
+            <div className="msg client">
+              <div className="msg-role">Tom — Greenway Landscape</div>
+              <div className="bubble client">{BRIEF}</div>
+            </div>
+            {team.messages.map((m, i) => (
+              <div key={i} className={`msg ${m.role === "user" ? "user" : "client"}`}>
+                <div className={`msg-role${m.role === "user" ? " user" : ""}`}>{m.role === "user" ? "Your Team" : "Tom — Greenway Landscape"}</div>
+                <div className={`bubble ${m.role === "user" ? "user" : "client"}`}>{m.content}</div>
+              </div>
+            ))}
+            {aiLoading && <div className="msg client"><div className="msg-role">Tom — Greenway Landscape</div><div className="bubble client"><div className="typing"><div className="tdot"/><div className="tdot"/><div className="tdot"/></div></div></div>}
+            <div ref={bottomRef} />
+          </div>
+          {qUsed < MAX_Q ? (
+            <div className="chat-ftr">
+              <textarea className="chat-input" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }} placeholder={`Ask your question... (${remaining} remaining)`} rows={2} disabled={aiLoading} />
+              <button className="btn-send" onClick={sendMessage} disabled={!input.trim() || aiLoading}>Send</button>
+            </div>
+          ) : (
+            <div className="chat-locked"><p className="chat-locked-txt">All 10 questions used — moving to scoping...</p></div>
+          )}
+        </div>
+      );
+
+      if (screen === "scope" && team) return (
+        <div className="scope-screen">
+          {submitConfirm && (
+            <div className="overlay">
+              <div className="dialog">
+                <h3 className="dialog-title">Submit Scope Board?</h3>
+                <p className="dialog-body">Once submitted your board is locked and you cannot make further changes. Make sure your team is happy with the estimate before submitting.</p>
+                <div className="dialog-btns">
+                  <button className="btn-cancel" onClick={() => setSubmitConfirm(false)}>Go Back</button>
+                  <button className="btn-primary" onClick={handleSubmit}>Submit Board</button>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="scope-hdr">
+            <div className="sc-ident">
+              <div className="sc-name">{team.teamName}</div>
+              <div className="sc-label">Team {team.teamNumber} · Scoping Phase · {qUsed}/{MAX_Q} questions asked</div>
+            </div>
+            <div className="sc-hdr-right">
+              <div className="sc-total">
+                <div className="sc-total-lbl">Total Estimate</div>
+                <div><span className="sc-total-val">{scopeHrs}</span><span className="sc-total-unit"> hrs</span></div>
+              </div>
+              <button className="btn-submit" onClick={() => setSubmitConfirm(true)}>Submit Board</button>
+            </div>
+          </div>
+          <div className="scope-split">
+            <div className="scope-qa">
+              <div className="scope-qa-lbl">Discovery Q&amp;A</div>
+              <div className="fac-msg"><div className="fac-role">Tom — Opening Statement</div><div className="fac-txt">{BRIEF}</div></div>
+              {team.messages.length === 0 ? <p className="pane-empty">No questions were asked.</p> : team.messages.map((m, i) => (
+                <div key={i} className="fac-msg">
+                  <div className={`fac-role${m.role === "user" ? " user" : ""}`}>{m.role === "user" ? "Your Team" : "Tom — Greenway"}</div>
+                  <div className="fac-txt">{m.content}</div>
+                </div>
+              ))}
+            </div>
+            <div className="scope-board">
+              <table className="scope-table">
+                <thead><tr><th style={{width:"48%"}}>Task / Deliverable</th><th style={{width:"22%"}}>Category</th><th style={{width:"18%",textAlign:"right"}}>Hours</th><th style={{width:"12%"}} /></tr></thead>
+                <tbody>
+                  {team.scopeItems.map((row) => (
+                    <tr key={row.id}>
+                      <td><input className="si" value={row.task} onChange={(e) => updRow(row.id, "task", e.target.value)} placeholder="Describe the task..." /></td>
+                      <td><select className="ss" value={row.category} onChange={(e) => updRow(row.id, "category", e.target.value)}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></td>
+                      <td style={{textAlign:"right"}}><input className="sh" type="number" min="0" value={row.hours} onChange={(e) => updRow(row.id, "hours", e.target.value)} placeholder="0" /></td>
+                      <td><button className="btn-del" onClick={() => delRow(row.id)}>✕</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <button className="btn-add-row" onClick={addRow}>+ Add Task</button>
+              {team.scopeItems.length === 0 && <p className="scope-empty">Start adding tasks above. What will you build for Greenway?</p>}
+            </div>
+          </div>
+        </div>
+      );
+
+      if (screen === "submitted" && team) return (
+        <div className="submitted-screen">
+          <div className="sub-check">✓</div>
+          <h2 className="sub-title">Board Submitted</h2>
+          <p className="sub-team">{team.teamName} · Team {team.teamNumber}</p>
+          <div className="sub-stats">
+            <div className="sub-stat"><span className="sub-stat-val">{scopeHrs}</span><span className="sub-stat-lbl">Estimated Hours</span></div>
+            <div className="sub-stat"><span className="sub-stat-val">{team.scopeItems.length}</span><span className="sub-stat-lbl">Tasks Scoped</span></div>
+            <div className="sub-stat"><span className="sub-stat-val">{qUsed}</span><span className="sub-stat-lbl">Questions Used</span></div>
+          </div>
+          <button className="btn-primary" onClick={() => { window.location.hash = ""; setTeam(null); setScreen("landing"); }}>Return to Home</button>
+        </div>
+      );
+
+      if (screen === "facilitator-login") return (
+        <div className="fac-login">
+          <h2 className="fac-login-title">Facilitator Mode</h2>
+          <p className="fac-login-sub">Enter passcode to continue</p>
+          <input className={`fac-inp${facErr ? " err" : ""}`} type="password" value={facInput} onChange={(e) => setFacInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && facLogin()} placeholder="passcode" autoFocus />
+          {facErr && <p className="fac-err">Incorrect passcode</p>}
+          <button className="btn-primary" onClick={facLogin}>Enter</button>
+          <button className="btn-ghost" onClick={() => { window.location.hash = ""; setScreen("landing"); }}>← Back</button>
+        </div>
+      );
+
+      if (screen === "facilitator-dashboard") return (
+        <div className="fac-dash">
+          {questionsModal && (
+            <div className="overlay" onClick={() => setQuestionsModal(null)}>
+              <div className="dialog q-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="q-modal-header">
+                  <div>
+                    <div className="q-modal-title">{questionsModal.teamName}</div>
+                    <div className="q-modal-sub">Team {questionsModal.teamNumber} &nbsp;·&nbsp; {questionsModal.messages.filter((m) => m.role === "user").length} / {MAX_Q} questions asked</div>
+                  </div>
+                  <button className="btn-close-modal" onClick={() => setQuestionsModal(null)}>✕</button>
+                </div>
+                <div className="q-list">
+                  {questionsModal.messages.filter((m) => m.role === "user").length === 0 ? <p className="q-empty">No questions asked yet.</p> : questionsModal.messages.filter((m) => m.role === "user").map((m, i) => (
+                    <div key={i} className="q-item"><span className="q-num">{i + 1}.</span><span className="q-text">{m.content}</span></div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {resetConfirm && (
+            <div className="overlay">
+              <div className="dialog">
+                <h3 className="dialog-title danger">Reset All Session Data?</h3>
+                <p className="dialog-body">This permanently deletes all team registrations, Q&amp;A logs, and scope boards. Use this between dry runs and the real session. Cannot be undone.</p>
+                <div className="dialog-btns">
+                  <button className="btn-cancel" onClick={() => setResetConfirm(false)}>Cancel</button>
+                  <button className="btn-warn-red" onClick={resetSession}>Reset Everything</button>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="fac-hdr">
+            <div className="fac-hdr-left">
+              <div className="fac-hdr-title">Facilitator View</div>
+              <div className="fac-hdr-sub">Greenway Discovery Exercise</div>
+            </div>
+            <div className="fac-hdr-right">
+              <span className="fac-count">{allTeams.length} team{allTeams.length !== 1 ? "s" : ""} registered</span>
+              <button className={`btn-sm${sortHours ? " active" : ""}`} onClick={() => setSortHours((s) => !s)}>{sortHours ? "↕ Sorted by Hours" : "↕ Sort by Hours"}</button>
+              <button className="btn-sm" onClick={loadTeams}>↻ Refresh</button>
+              <button className="btn-sm" onClick={() => setScreen("questions-grid")}>Questions Grid</button>
+              <button className="btn-danger" onClick={() => setResetConfirm(true)}>⚠ Reset Session</button>
+              <button className="btn-sm" onClick={() => { window.location.hash = ""; setScreen("landing"); }}>← Exit</button>
+            </div>
+          </div>
+          <div className="fac-body">
+            {allTeams.length === 0 ? <p className="fac-empty">{facLoading ? "Loading teams..." : "No teams have logged in yet."}</p> : (
+              <div className="team-grid">
+                {sortedTeams.map((t) => {
+                  const h = sumHours(t.scopeItems);
+                  const q = countQ(t.messages);
+                  const status = t.submitted ? "submitted" : t.chatClosed ? "scoping" : "chatting";
+                  return (
+                    <div key={t.teamNumber} className={`team-card ${status}`} onClick={() => openDetail(t)}>
+                      <div className="card-num">TEAM {t.teamNumber}</div>
+                      <div className="card-name">{t.teamName}</div>
+                      <div className="card-stats">
+                        <div className="c-stat"><span className="c-stat-lbl">Questions</span><span className="c-stat-val">{q}<span className="c-denom">/{MAX_Q}</span></span></div>
+                        <div className="c-stat"><span className="c-stat-lbl">Est. Hours</span><span className="c-stat-val hours">{h || "—"}</span></div>
+                        <span className={`badge ${status}`}>{status}</span>
+                      </div>
+                      <button className="btn-questions" onClick={(e) => { e.stopPropagation(); setQuestionsModal(t); }}>View Questions</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+
+      if (screen === "questions-grid") {
+        const totalQ = allTeams.reduce((s, t) => s + countQ(t.messages), 0);
+        const teamsWithQ = allTeams.filter((t) => t.messages.some((m) => m.role === "user")).length;
+        return (
+          <div className="qg-screen">
+            <div className="qg-header">
+              <div className="qg-header-left">
+                <div className="qg-title">Questions Analysis</div>
+                <div className="qg-sub">{teamsWithQ} team{teamsWithQ !== 1 ? "s" : ""} · {totalQ} questions total</div>
+              </div>
+              <div style={{display:"flex",gap:"9px",alignItems:"center",flexWrap:"wrap"}}>
+                <button className={`btn-sm${qgMode === "analysis" ? " active" : ""}`} onClick={() => setQgMode("analysis")}>By Theme</button>
+                <button className={`btn-sm${qgMode === "teams" ? " active" : ""}`} onClick={() => setQgMode("teams")}>By Team</button>
+                <button className="btn-sm" onClick={loadTeams}>↻ Refresh</button>
+                <button className="btn-sm" onClick={() => setScreen("facilitator-dashboard")}>← Back</button>
+              </div>
+            </div>
+            {qgMode === "analysis" ? (
+              <div className="analysis-body">
+                {allTeams.length === 0 ? (
+                  <div className="analysis-prompt"><p className="analysis-prompt-title">No teams yet</p><p className="analysis-prompt-sub">Teams need to log in and ask questions before you can run an analysis.</p></div>
+                ) : analysisLoading ? (
+                  <div className="analysis-loading"><div className="ld-dots"><div className="ld-dot"/><div className="ld-dot"/><div className="ld-dot"/></div><p className="analysis-loading-text">Grouping questions across teams...</p></div>
+                ) : analysisResult?.error ? (
+                  <div className="analysis-prompt"><p className="analysis-error">Something went wrong. Try again.</p><button className="btn-primary" onClick={runAnalysis}>Retry</button></div>
+                ) : analysisResult ? (
+                  <>
+                    <div className="analysis-groups">
+                      {analysisResult.groups.map((g, i) => {
+                        const isOpen = expandedGroup === i;
+                        return (
+                          <div key={i} className="ag">
+                            <div className="ag-count"><span className="ag-count-num">{g.count}</span><span className="ag-count-label">of {teamsWithQ} teams</span></div>
+                            <div className="ag-content">
+                              <div className="ag-theme">{g.theme}</div>
+                              <div className="ag-summary">{g.summary}</div>
+                              <div className="ag-teams">{g.team_names.map((name, j) => <span key={j} className="ag-chip">{name}</span>)}</div>
+                              <button className="ag-expand-btn" onClick={() => setExpandedGroup(isOpen ? null : i)}>{isOpen ? "▲ Hide questions" : `▼ Show ${g.questions.length} question${g.questions.length !== 1 ? "s" : ""}`}</button>
+                              {isOpen && <div className="ag-questions">{g.questions.map((q, k) => <div key={k} className="ag-q-item"><span className="ag-q-chip">{q.team_name}</span><span className="ag-q-text">{q.text}</span></div>)}</div>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{textAlign:"center",marginTop:"24px"}}><button className="btn-sm" onClick={runAnalysis}>↻ Re-analyze</button></div>
+                  </>
+                ) : (
+                  <div className="analysis-prompt">
+                    <p className="analysis-prompt-title">Ready to analyze</p>
+                    <p className="analysis-prompt-sub">Groups similar questions across all teams and shows which themes everyone converged on — and which ones only one team thought to ask.</p>
+                    <button className="btn-primary" onClick={runAnalysis}>Analyze Questions</button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="qg-body">
+                {allTeams.length === 0 ? <p className="fac-empty">No teams have logged in yet.</p> : (
+                  <div className="qg-grid">
+                    {allTeams.map((t) => {
+                      const questions = t.messages.filter((m) => m.role === "user");
+                      const status = t.submitted ? "submitted" : t.chatClosed ? "scoping" : "chatting";
+                      return (
+                        <div key={t.teamNumber} className={`qg-col ${status}`}>
+                          <div className="qg-col-num">Team {t.teamNumber}</div>
+                          <div className="qg-col-name">{t.teamName}</div>
+                          <div className="qg-divider" />
+                          <div className="qg-questions">
+                            {questions.length === 0 ? <p className="qg-none">No questions asked yet.</p> : questions.map((m, i) => (
+                              <div key={i} className="qg-q"><span className="qg-qnum">{i + 1}.</span><span className="qg-qtext">{m.content}</span></div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      if (screen === "facilitator-detail" && detailTeam) {
+        const h = sumHours(detailTeam.scopeItems);
+        const q = countQ(detailTeam.messages);
+        return (
+          <div className="fac-detail">
+            <div className="fac-det-hdr">
+              <button className="btn-back" onClick={() => { setDetailTeam(null); setScreen("facilitator-dashboard"); }}>← All Teams</button>
+              <div className="det-info"><div className="det-name">{detailTeam.teamName}</div><div className="det-num">Team {detailTeam.teamNumber}</div></div>
+              <div className="det-meta">{q}/{MAX_Q} questions · {h} hrs estimated</div>
+            </div>
+            <div className="fac-det-body">
+              <div className="pane">
+                <div className="pane-lbl">Discovery Q&amp;A</div>
+                <div className="fac-msg"><div className="fac-role">Tom — Opening Statement</div><div className="fac-txt">{BRIEF}</div></div>
+                {detailTeam.messages.length === 0 ? <p className="pane-empty">No questions asked yet.</p> : detailTeam.messages.map((m, i) => (
+                  <div key={i} className="fac-msg">
+                    <div className={`fac-role${m.role === "user" ? " user" : ""}`}>{m.role === "user" ? `Team ${detailTeam.teamNumber}` : "Tom — Greenway"}</div>
+                    <div className="fac-txt">{m.content}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="pane">
+                <div className="pane-lbl">Scope Board</div>
+                {!detailTeam.chatClosed ? <p className="pane-empty">Chat still open — scope board is locked.</p> : detailTeam.scopeItems.length === 0 ? <p className="pane-empty">Scoping in progress — no tasks added yet.</p> : (
+                  <>
+                    {detailTeam.scopeItems.map((item) => (
+                      <div key={item.id} className="fac-scope-row">
+                        <div className="fac-scope-task">{item.task || <em style={{color:"var(--muted)"}}>Untitled task</em>}</div>
+                        <div className="fac-scope-meta"><span className="fac-scope-cat">{item.category}</span><span className="fac-scope-hrs">{item.hours || 0} hrs</span></div>
+                      </div>
+                    ))}
+                    <div className="fac-scope-total">Total: <strong>{h} hrs</strong></div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      return null;
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
