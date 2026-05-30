@@ -444,7 +444,8 @@ html,body{min-height:100%;background-color:var(--bg);color:var(--text);font-fami
                 };
                 setTeam(team);
                 if (team.submitted) return setScreen("submitted");
-                return setScreen(team.chatClosed ? "scope" : "chat");
+                if (team.chatClosed) return setScreen("scope");
+                return setScreen("chat");
               }
             }
           }
@@ -553,10 +554,7 @@ html,body{min-height:100%;background-color:var(--bg);color:var(--text);font-fami
           const final = [...withUser, { role: "assistant", content: reply }];
           upd((p) => ({ ...p, messages: final }));
           if (countQ(final) >= MAX_Q) {
-            setTimeout(() => {
-              upd((p) => ({ ...p, chatClosed: true }));
-              setScreen("scope");
-            }, 2200);
+            upd((p) => ({ ...p, questionsExhausted: true }));
           }
         } catch {
           upd((p) => ({
@@ -720,7 +718,7 @@ Rules:
               <div className={ctrClass}>{qUsed} / {MAX_Q} questions</div>
               <div className="ctr-pips">{Array.from({ length: MAX_Q }).map((_, i) => <div key={i} className={pipClass(i)} />)}</div>
             </div>
-            {qUsed < MAX_Q && <button className="btn-close-chat" onClick={() => setConfirm(true)}>Close Chat</button>}
+            {qUsed < MAX_Q && !team.questionsExhausted && <button className="btn-close-chat" onClick={() => setConfirm(true)}>Close Chat</button>}
           </div>
           <div className="msgs">
             <div className="msg client">
@@ -736,13 +734,22 @@ Rules:
             {aiLoading && <div className="msg client"><div className="msg-role">Tom — Greenway Landscape</div><div className="bubble client"><div className="typing"><div className="tdot"/><div className="tdot"/><div className="tdot"/></div></div></div>}
             <div ref={bottomRef} />
           </div>
-          {qUsed < MAX_Q ? (
+          {team.questionsExhausted ? (
+            <div className="chat-ftr">
+              <div style={{flex:1}}>
+                <p className="chat-locked-txt">You've used all 10 questions. Read Tom's last response, then begin scoping when your team is ready.</p>
+              </div>
+              <button className="btn-send" onClick={() => { upd((p) => ({ ...p, chatClosed: true })); setScreen("scope"); }}>Begin Scoping →</button>
+            </div>
+          ) : qUsed < MAX_Q ? (
             <div className="chat-ftr">
               <textarea className="chat-input" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }} placeholder={`Ask your question... (${remaining} remaining)`} rows={2} disabled={aiLoading} />
               <button className="btn-send" onClick={sendMessage} disabled={!input.trim() || aiLoading}>Send</button>
             </div>
           ) : (
-            <div className="chat-locked"><p className="chat-locked-txt">All 10 questions used — moving to scoping...</p></div>
+            <div className="chat-ftr" style={{justifyContent:"center"}}>
+              <p className="chat-locked-txt">All 10 questions used.</p>
+            </div>
           )}
         </div>
       );
